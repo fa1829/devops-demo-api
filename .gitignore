@@ -48,3 +48,4 @@ logs/
 *.tfplan
 *:Zone.Identifier
 *:Zone.Identifier
+*:Zone.Identifier
