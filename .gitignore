@@ -46,3 +46,4 @@ logs/
 *.tfstate.backup
 .terraform/
 *.tfplan
+*:Zone.Identifier
