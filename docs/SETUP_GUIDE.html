@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project #1 Setup Guide — DevOps CI/CD Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Archivo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f2eb;
+    --surface: #fff;
+    --dark: #0f0f0f;
+    --mid: #3a3a3a;
+    --muted: #888;
+    --accent: #1a1a2e;
+    --green: #00a86b;
+    --red: #e63946;
+    --yellow: #f4a261;
+    --blue: #457b9d;
+    --border: #ddd5c8;
+    --code-bg: #1a1a2e;
+    --code-text: #a8d8a8;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Archivo', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--dark);
+    font-family: var(--sans);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--accent);
+    color: #fff;
+    padding: 3rem 2rem 2.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '$ git push origin main';
+    position: absolute; right: 2rem; top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--mono); font-size: 1.5rem;
+    color: rgba(255,255,255,0.06);
+    white-space: nowrap;
+  }
+  .header-tag {
+    font-family: var(--mono); font-size: 0.75rem;
+    color: #a8d8a8; letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 0.75rem;
+  }
+  .header h1 {
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    font-weight: 900; line-height: 1.1;
+    letter-spacing: -0.03em; margin-bottom: 0.75rem;
+  }
+  .header p { color: rgba(255,255,255,0.65); font-size: 1rem; max-width: 600px; }
+  .header-meta {
+    display: flex; gap: 1.5rem; margin-top: 1.5rem; flex-wrap: wrap;
+  }
+  .meta-chip {
+    font-family: var(--mono); font-size: 0.72rem;
+    padding: 0.3rem 0.8rem; border-radius: 4px;
+    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7);
+    letter-spacing: 0.06em;
+  }
+
+  /* LAYOUT */
+  .layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  /* SIDEBAR NAV */
+  .sidebar {
+    position: sticky; top: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+  .sidebar-title {
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--muted); letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 1rem;
+  }
+  .sidebar a {
+    display: block; padding: 0.45rem 0.75rem;
+    font-size: 0.82rem; text-decoration: none;
+    color: var(--mid); border-radius: 6px;
+    transition: all 0.15s; margin-bottom: 2px;
+  }
+  .sidebar a:hover { background: var(--bg); color: var(--dark); }
+  .sidebar a.active { background: var(--accent); color: #fff; }
+  .sidebar-step-num {
+    display: inline-block; width: 18px; height: 18px;
+    background: var(--border); border-radius: 50%;
+    text-align: center; line-height: 18px;
+    font-size: 0.65rem; margin-right: 0.4rem;
+    font-family: var(--mono);
+  }
+
+  /* MAIN CONTENT */
+  .main { min-width: 0; }
+
+  /* STEP SECTIONS */
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    scroll-margin-top: 1.5rem;
+  }
+  .step-header {
+    display: flex; align-items: flex-start; gap: 1rem;
+    margin-bottom: 1.5rem; padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .step-number {
+    width: 40px; height: 40px; flex-shrink: 0;
+    background: var(--accent); color: #fff;
+    border-radius: 10px; display: flex;
+    align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 0.8rem; font-weight: 600;
+  }
+  .step-number.done { background: var(--green); }
+  .step-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.2rem; }
+  .step-subtitle { font-size: 0.85rem; color: var(--muted); }
+  .step-time {
+    margin-left: auto; font-family: var(--mono); font-size: 0.72rem;
+    color: var(--muted); white-space: nowrap; padding-top: 0.2rem;
+  }
+
+  /* CODE BLOCKS */
+  .code-block {
+    background: var(--code-bg);
+    border-radius: 10px; overflow: hidden;
+    margin: 1.25rem 0;
+    font-family: var(--mono);
+  }
+  .code-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.6rem 1rem;
+    background: rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .code-filename {
+    font-size: 0.72rem; color: rgba(255,255,255,0.5);
+    letter-spacing: 0.06em;
+  }
+  .copy-btn {
+    font-family: var(--mono); font-size: 0.65rem;
+    color: rgba(255,255,255,0.4); background: none; border: none;
+    cursor: pointer; padding: 0.2rem 0.5rem; border-radius: 4px;
+    transition: all 0.2s;
+  }
+  .copy-btn:hover { color: #a8d8a8; background: rgba(255,255,255,0.06); }
+  .copy-btn.copied { color: var(--green); }
+  pre {
+    padding: 1.25rem 1.25rem;
+    overflow-x: auto;
+    font-size: 0.82rem;
+    line-height: 1.65;
+    color: #cdd6f4;
+  }
+  .kw { color: #cba6f7; }
+  .str { color: #a6e3a1; }
+  .cm { color: #6c7086; font-style: italic; }
+  .fn { color: #89b4fa; }
+  .var { color: #fab387; }
+  .num { color: #f38ba8; }
+
+  /* CALLOUTS */
+  .callout {
+    border-radius: 8px; padding: 1rem 1.25rem;
+    margin: 1rem 0; font-size: 0.88rem;
+    display: flex; gap: 0.75rem; align-items: flex-start;
+  }
+  .callout-icon { flex-shrink: 0; margin-top: 0.1rem; }
+  .callout.info { background: #e8f4fd; border-left: 3px solid var(--blue); color: #1a4a6b; }
+  .callout.warn { background: #fff4e6; border-left: 3px solid var(--yellow); color: #7a4010; }
+  .callout.success { background: #e8f8f2; border-left: 3px solid var(--green); color: #0a4a2e; }
+  .callout.danger { background: #fde8ea; border-left: 3px solid var(--red); color: #6b0a0f; }
+
+  /* CHECKLIST */
+  .checklist { list-style: none; margin: 1rem 0; }
+  .checklist li {
+    display: flex; align-items: flex-start; gap: 0.75rem;
+    padding: 0.5rem 0; font-size: 0.9rem; border-bottom: 1px solid var(--border);
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .check-box {
+    width: 20px; height: 20px; border: 2px solid var(--border);
+    border-radius: 5px; flex-shrink: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; margin-top: 1px;
+  }
+  .check-box.checked { background: var(--green); border-color: var(--green); color: #fff; font-size: 0.75rem; }
+
+  /* TABLE */
+  table { width: 100%; border-collapse: collapse; font-size: 0.87rem; margin: 1rem 0; }
+  th {
+    background: var(--bg); text-align: left;
+    padding: 0.6rem 0.9rem; font-weight: 600;
+    border-bottom: 2px solid var(--border);
+    font-family: var(--mono); font-size: 0.75rem;
+    letter-spacing: 0.06em; color: var(--muted);
+    text-transform: uppercase;
+  }
+  td { padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg); }
+  .tag {
+    font-family: var(--mono); font-size: 0.7rem;
+    padding: 0.2rem 0.5rem; border-radius: 4px;
+    background: var(--bg); border: 1px solid var(--border);
+  }
+
+  /* ARCHITECTURE DIAGRAM */
+  .arch-diagram {
+    background: var(--code-bg); color: #a8d8a8;
+    font-family: var(--mono); font-size: 0.78rem;
+    line-height: 1.8; padding: 1.5rem;
+    border-radius: 10px; overflow-x: auto;
+    white-space: pre;
+  }
+
+  /* PROGRESS TRACKER */
+  .progress-bar-wrap {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0.75rem 2rem; display: flex; align-items: center; gap: 1rem;
+  }
+  .progress-label { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+  .progress-bar { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width 0.4s ease; width: 0%; }
+  .progress-pct { font-family: var(--mono); font-size: 0.72rem; color: var(--green); min-width: 30px; }
+
+  /* TERMINAL ANIMATION */
+  .terminal {
+    background: #0d1117; border-radius: 10px; overflow: hidden; margin: 1rem 0;
+  }
+  .terminal-bar {
+    background: #21262d; padding: 0.5rem 1rem;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-r { background: #ff5f57; } .dot-y { background: #febc2e; } .dot-g { background: #28c840; }
+  .terminal-body { padding: 1rem 1.25rem; font-family: var(--mono); font-size: 0.8rem; line-height: 1.8; }
+  .t-prompt { color: #58a6ff; }
+  .t-cmd { color: #e6edf3; }
+  .t-out { color: #3fb950; }
+  .t-muted { color: #8b949e; }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { position: static; }
+    .header::before { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-tag">// Portfolio Project 01 · Step-by-Step Guide</div>
+  <h1>Auto-Deploy CI/CD Pipeline</h1>
+  <p>A real production pipeline: code push → tests → Docker → deploy. Every step explained, every command ready to paste.</p>
+  <div class="header-meta">
+    <span class="meta-chip">⏱ ~2 hours to complete</span>
+    <span class="meta-chip">🐳 Docker required</span>
+    <span class="meta-chip">🐙 GitHub account required</span>
+    <span class="meta-chip">☁️ Optional: cloud server</span>
+  </div>
+</div>
+
+<div class="progress-bar-wrap">
+  <span class="progress-label">Setup Progress</span>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="progress-pct" id="progressPct">0%</span>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-title">Steps</div>
+    <a href="#step-prereq"><span class="sidebar-step-num">0</span>Prerequisites</a>
+    <a href="#step-structure"><span class="sidebar-step-num">1</span>Project Structure</a>
+    <a href="#step-app"><span class="sidebar-step-num">2</span>Flask App</a>
+    <a href="#step-docker"><span class="sidebar-step-num">3</span>Dockerfile</a>
+    <a href="#step-compose"><span class="sidebar-step-num">4</span>Docker Compose</a>
+    <a href="#step-tests"><span class="sidebar-step-num">5</span>Tests</a>
+    <a href="#step-local"><span class="sidebar-step-num">6</span>Run Locally</a>
+    <a href="#step-github"><span class="sidebar-step-num">7</span>Push to GitHub</a>
+    <a href="#step-secrets"><span class="sidebar-step-num">8</span>GitHub Secrets</a>
+    <a href="#step-pipeline"><span class="sidebar-step-num">9</span>CI/CD Pipeline</a>
+    <a href="#step-deploy"><span class="sidebar-step-num">10</span>Deploy to Cloud</a>
+    <a href="#step-verify"><span class="sidebar-step-num">11</span>Verify & Test</a>
+    <a href="#step-interview"><span class="sidebar-step-num">★</span>Interview Prep</a>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- STEP 0: PREREQUISITES -->
+    <div class="step" id="step-prereq">
+      <div class="step-header">
+        <div class="step-number">00</div>
+        <div>
+          <div class="step-title">Prerequisites — Install These First</div>
+          <div class="step-subtitle">One-time setup on your laptop</div>
+        </div>
+        <div class="step-time">⏱ 20 min</div>
+      </div>
+
+      <p style="margin-bottom:1rem;color:var(--mid);font-size:0.92rem;">Before writing any code, make sure these are installed. Tick each one off:</p>
+
+      <ul class="checklist" id="prereq-list">
+        <li><div class="check-box" onclick="toggleCheck(this)"></div><div><strong>Docker Desktop</strong> — <a href="https://www.docker.com/products/docker-desktop/" target="_blank">docker.com/products/docker-desktop</a> — Install and open it. You should see the whale icon running.</div></li>
+        <li><div class="check-box" onclick="toggleCheck(this)"></div><div><strong>Git</strong> — Run <code>git --version</code>. If not installed: <code>brew install git</code> (Mac) or <a href="https://git-scm.com" target="_blank">git-scm.com</a> (Windows)</div></li>
+        <li><div class="check-box" onclick="toggleCheck(this)"></div><div><strong>GitHub account</strong> — <a href="https://github.com" target="_blank">github.com</a> — Free. Create a new repo called <code>devops-demo-api</code></div></li>
+        <li><div class="check-box" onclick="toggleCheck(this)"></div><div><strong>Docker Hub account</strong> — <a href="https://hub.docker.com" target="_blank">hub.docker.com</a> — Free. This is where your Docker images get stored.</div></li>
+        <li><div class="check-box" onclick="toggleCheck(this)"></div><div><strong>Python 3.12</strong> — <code>python3 --version</code>. Install from <a href="https://python.org" target="_blank">python.org</a> if needed.</div></li>
+        <li><div class="check-box" onclick="toggleCheck(this)"></div><div><strong>VS Code</strong> (recommended) — <a href="https://code.visualstudio.com" target="_blank">code.visualstudio.com</a>. Install the Docker and Python extensions.</div></li>
+      </ul>
+
+      <div class="callout info">
+        <span class="callout-icon">ℹ️</span>
+        <div>On <strong>Windows</strong>: Install WSL2 first (<code>wsl --install</code> in PowerShell as admin), then install Docker Desktop and enable WSL2 integration. All terminal commands below run in WSL2.</div>
+      </div>
+
+      <!-- Verify Docker -->
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-filename">terminal — verify installations</span>
+          <button class="copy-btn" onclick="copyCode(this)">copy</button>
+        </div>
+        <pre><span class="t-prompt">$</span> <span class="t-cmd">docker --version</span>
+<span class="t-out">Docker version 27.x.x, build abc123</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">docker compose version</span>
+<span class="t-out">Docker Compose version v2.x.x</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">git --version</span>
+<span class="t-out">git version 2.x.x</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">python3 --version</span>
+<span class="t-out">Python 3.12.x</span></pre>
+      </div>
+    </div>
+
+    <!-- STEP 1: PROJECT STRUCTURE -->
+    <div class="step" id="step-structure">
+      <div class="step-header">
+        <div class="step-number">01</div>
+        <div>
+          <div class="step-title">Create the Project Structure</div>
+          <div class="step-subtitle">Set up folders and initialize Git</div>
+        </div>
+        <div class="step-time">⏱ 5 min</div>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-filename">terminal</span>
+          <button class="copy-btn" onclick="copyCode(this)">copy</button>
+        </div>
+        <pre><span class="cm"># Create project directory</span>
+<span class="t-prompt">$</span> <span class="t-cmd">mkdir devops-demo-api && cd devops-demo-api</span>
+
+<span class="cm"># Create subdirectories</span>
+<span class="t-prompt">$</span> <span class="t-cmd">mkdir -p app tests .github/workflows nginx docs</span>
+
+<span class="cm"># Initialize git</span>
+<span class="t-prompt">$</span> <span class="t-cmd">git init</span>
+<span class="t-out">Initialized empty Git repository in .../devops-demo-api/.git/</span>
+
+<span class="cm"># Open in VS Code</span>
+<span class="t-prompt">$</span> <span class="t-cmd">code .</span></pre>
+      </div>
+
+      <p style="font-size:0.88rem;color:var(--mid);margin:0.75rem 0;">Your final structure will look like this:</p>
+      <div class="arch-diagram">devops-demo-api/
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yml          ← Pipeline definition
+├── app/
+│   ├── main.py                ← Flask API
+│   └── requirements.txt       ← Python deps
+├── tests/
+│   └── test_api.py            ← Test suite
+├── nginx/
+│   └── nginx.conf             ← Reverse proxy config
+├── Dockerfile                 ← Container build recipe
+├── docker-compose.yml         ← Local dev stack
+├── Makefile                   ← Dev shortcuts
+├── .gitignore
+├── .dockerignore
+└── README.md</div>
+    </div>
+
+    <!-- STEP 2: FLASK APP -->
+    <div class="step" id="step-app">
+      <div class="step-header">
+        <div class="step-number">02</div>
+        <div>
+          <div class="step-title">Write the Flask Application</div>
+          <div class="step-subtitle">The app being deployed by the pipeline</div>
+        </div>
+        <div class="step-time">⏱ 10 min</div>
+      </div>
+
+      <div class="callout info">
+        <span class="callout-icon">💡</span>
+        <div>The app itself is simple — a REST API with health endpoints and a task CRUD. <strong>The app is not the point; the pipeline is.</strong> But it needs to be real enough to demonstrate testing, health checks, and versioned endpoints.</div>
+      </div>
+
+      <p style="margin:0.75rem 0;font-size:0.9rem;"><strong>Key endpoints to understand:</strong></p>
+      <table>
+        <tr><th>Endpoint</th><th>Purpose</th><th>Used by</th></tr>
+        <tr><td><code>/health</code></td><td>Liveness check — is the app alive?</td><td>Load balancers, Kubernetes, monitoring</td></tr>
+        <tr><td><code>/ready</code></td><td>Readiness — can it serve traffic?</td><td>Kubernetes readiness probes</td></tr>
+        <tr><td><code>/info</code></td><td>Version, build time, environment</td><td>Debugging deployments</td></tr>
+        <tr><td><code>/api/tasks</code></td><td>CRUD task API</td><td>Demonstrates real API patterns</td></tr>
+      </table>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-filename">app/requirements.txt</span>
+          <button class="copy-btn" onclick="copyCode(this)">copy</button>
+        </div>
+        <pre>flask==3.0.3
+flask-cors==4.0.1
+gunicorn==22.0.0
+pytest==8.2.2
+pytest-cov==5.0.0
+requests==2.32.3</pre>
+      </div>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠️</span>
+        <div>Copy <strong>app/main.py</strong> from the project files provided. It's ~150 lines. The key parts to understand are the <code>/health</code> endpoint (always returns 200), environment variables for versioning, and the gunicorn startup in the <code>if __name__ == "__main__"</code> block.</div>
+      </div>
+    </div>
+
+    <!-- STEP 3: DOCKERFILE -->
+    <div class="step" id="step-docker">
+      <div class="step-header">
+        <div class="step-number">03</div>
+        <div>
+          <div class="step-title">Write the Dockerfile</div>
+          <div class="step-subtitle">Multi-stage build for a small, secure image</div>
+        </div>
+        <div class="step-time">⏱ 10 min</div>
+      </div>
+
+      <p style="margin-bottom:1rem;color:var(--mid);font-size:0.9rem;">The Dockerfile has two stages. This is a critical concept to understand for interviews:</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1rem 0;">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;">
+          <div style="font-weight:700;margin-bottom:0.5rem;">Stage 1: Builder</div>
+          <div style="font-size:0.84rem;color:var(--mid);">Install ALL dependencies. Has pip, build tools, etc. This stage is thrown away after build.</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;">
+          <div style="font-weight:700;margin-bottom:0.5rem;">Stage 2: Runtime</div>
+          <div style="font-size:0.84rem;color:var(--mid);">Copies only installed packages from Builder. No build tools. Runs as non-root user. Small & secure.</div>
+        </div>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-filename">terminal — build and test the image</span>
+          <button class="copy-btn" onclick="copyCode(this)">copy</button>
+        </div>
+        <pre><span class="cm"># Build the image locally</span>
+<span class="t-prompt">$</span> <span class="t-cmd">docker build -t devops-demo-api:local .</span>
+
+<span class="cm"># Check the image size (should be ~150-200MB)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">docker images devops-demo-api</span>
+<span class="t-out">REPOSITORY         TAG     IMAGE ID       SIZE</span>
+<span class="t-out">devops-demo-api    local   abc123def456   165MB</span>
+
+<span class="cm"># Run it and test health</span>
+<span class="t-prompt">$</span> <span class="t-cmd">docker run -p 5000:5000 --rm devops-demo-api:local</span>
+<span class="cm"># In another terminal:</span>
+<span class="t-prompt">$</span> <span class="t-cmd">curl http://localhost:5000/health</span>
+<span class="t-out">{"status": "healthy", "uptime_seconds": 1.2, ...}</span>
+
+<span class="cm"># Check who the container runs as (should NOT be root)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">docker run --rm devops-demo-api:local whoami</span>
+<span class="t-out">appuser</span></pre>
+      </div>
+    </div>
+
+    <!-- STEP 4: DOCKER COMPOSE -->
+    <div class="step" id="step-compose">
+      <div class="step-header">
+        <div class="step-number">04</div>
+        <div>
+          <div class="step-title">Docker Compose + Nginx</div>
+          <div class="step-subtitle">Simulate the production architecture locally</div>
+        </div>
+        <div class="step-time">⏱ 10 min</div>
+      </div>
+
+      <p style="color:var(--mid);font-size:0.9rem;margin-bottom:1rem;">Docker Compose runs multiple containers together. Our local stack mirrors production:</p>
+
+      <div class="arch-diagram">  Your Browser
+        │
+        ▼ :80
+  ┌─────────────────┐
+  │   nginx         │  ← Rate limiting, security headers
+  │   (container)   │
+  └────────┬────────┘
+           │ :5000 (internal network)
+           ▼
+  ┌─────────────────┐
+  │   Flask API     │  ← Gunicorn, 2 workers
+  │   (container)   │
+  └─────────────────┘</div>
+
+      <div class="callout success">
+        <span class="callout-icon">✅</span>
+        <div>The <code>depends_on: condition: service_healthy</code> in docker-compose.yml means Nginx won't start until the API passes its health check. This is production-grade container orchestration at the local level.</div>
+      </div>
+    </div>
+
+    <!-- STEP 5: TESTS -->
+    <div class="step" id="step-tests">
+      <div class="step-header">
+        <div class="step-number">05</div>
+        <div>
+          <div class="step-title">Write the Test Suite</div>
+          <div class="step-subtitle">These are what stop bad code from deploying</div>
+        </div>
+        <div class="step-time">⏱ 15 min</div>
+      </div>
+
+      <p style="color:var(--mid);font-size:0.9rem;margin-bottom:1rem;">Tests are the backbone of CI. If any test fails in the pipeline, the build stops. No bad code reaches production.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-filename">terminal — install deps and run tests</span>
+          <button class="copy-btn" onclick="copyCode(this)">copy</button>
+        </div>
+        <pre><span class="cm"># Install Python dependencies</span>
+<span class="t-prompt">$</span> <span class="t-cmd">pip install -r app/requirements.txt</span>
+
+<span class="cm"># Run all tests with verbose output</span>
+<span class="t-prompt">$</span> <span class="t-cmd">pytest tests/ -v --cov=app --cov-report=term-missing</span>
+
+<span class="t-out">========================= test session starts ==========================</span>
+<span class="t-out">tests/test_api.py::TestHealthEndpoints::test_health_returns_200 PASSED</span>
+<span class="t-out">tests/test_api.py::TestHealthEndpoints::test_health_returns_healthy_status PASSED</span>
+<span class="t-out">tests/test_api.py::TestTasksAPI::test_create_task_returns_201 PASSED</span>
+<span class="t-out">tests/test_api.py::TestTasksAPI::test_delete_task PASSED</span>
+<span class="t-out">...</span>
+<span class="t-out">====== 25 passed in 0.43s ======</span>
+
+<span class="cm"># Run a single test class</span>
+<span class="t-prompt">$</span> <span class="t-cmd">pytest tests/test_api.py::TestHealthEndpoints -v</span></pre>
+      </div>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠️</span>
+        <div>See a failing test? <strong>Fix it before moving on.</strong> The whole point of this project is that failing tests block deployment. Understanding why a test fails is a core DevOps skill — read the error message carefully.</div>
+      </div>
+    </div>
+
+    <!-- STEP 6: RUN LOCALLY -->
+    <div class="step" id="step-local">
+      <div class="step-header">
+        <div class="step-number">06</div>
+        <div>
+          <div class="step-title">Run the Full Stack Locally</div>
+          <div class="step-subtitle">Verify everything works before pushing to GitHub</div>
+        </div>
+        <div class="step-time">⏱ 10 min</div>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-filename">terminal</span>
+          <button class="copy-btn" onclick="copyCode(this)">copy</button>
+        </div>
+        <pre><span class="cm"># Start the full stack (Flask + Nginx)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">docker compose up --build</span>
+
+<span class="cm"># Wait for "Booting worker with pid" log line, then test:</span>
+
+<span class="cm"># 1. Via Nginx (port 80) - simulates production</span>
+<span class="t-prompt">$</span> <span class="t-cmd">curl http://localhost/health</span>
+<span class="t-out">{"status": "healthy", "uptime_seconds": 3.2, "timestamp": "..."}</span>
+
+<span class="cm"># 2. Via Flask directly (port 5000)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">curl http://localhost:5000/</span>
+<span class="t-out">{"service": "devops-demo-api", "version": "1.0.0-local", ...}</span>
+
+<span class="cm"># 3. Create a task via API</span>
+<span class="t-prompt">$</span> <span class="t-cmd">curl -X POST http://localhost/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Deploy to production"}'</span>
+<span class="t-out">{"id": 6, "title": "Deploy to production", "done": false}</span>
+
+<span class="cm"># 4. Check container health status</span>
+<span class="t-prompt">$</span> <span class="t-cmd">docker compose ps</span>
+<span class="t-out">NAME                   STATUS</span>
+<span class="t-out">devops-demo-api        Up (healthy)</span>
+<span class="t-out">devops-demo-nginx      Up</span></pre>
+      </div>
+
+      <div class="callout success">
+        <span class="callout-icon">🎉</span>
+        <div>If all tests pass and both containers start healthy — your local environment is working perfectly. Now let's put it on GitHub.</div>
+      </div>
+    </div>
+
+    <!-- STEP 7: GITHUB -->
+    <div class="step" id="step-github">
+      <div class="step-header">
+        <div class="step-number">07</div>
+        <div>
+          <div class="step-title">Push to GitHub</div>
+          <div class="step-subtitle">Create the repo and push all files</div>
+        </div>
+        <div class="step-time">⏱ 5 min</div>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-filename">terminal</span>
+          <button class="copy-btn" onclick="copyCode(this)">copy</button>
+        </div>
+        <pre><span class="cm"># Initialize git (if not done yet)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">git init</span>
+<span class="t-prompt">$</span> <span class="t-cmd">git add .</span>
+<span class="t-prompt">$</span> <span class="t-cmd">git commit -m "feat: initial CI/CD pipeline with Flask API, Docker, and GitHub Actions"</span>
+
+<span class="cm"># Connect to your GitHub repo (replace YOUR_USERNAME)</span>
+<span class="t-prompt">$</span> <span class="t-cmd">git remote add origin https://github.com/YOUR_USERNAME/devops-demo-api.git</span>
+<span class="t-prompt">$</span> <span class="t-cmd">git branch -M main</span>
+<span class="t-prompt">$</span> <span class="t-cmd">git push -u origin main</span></pre>
+      </div>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠️</span>
+        <div>After pushing, GitHub Actions will try to run the pipeline. It will FAIL at the Build step because you haven't added secrets yet. <strong>That's expected</strong> — the Test job should pass. Fix secrets in the next step.</div>
+      </div>
+    </div>
+
+    <!-- STEP 8: SECRETS -->
+    <div class="step" id="step-secrets">
+      <div class="step-header">
+        <div class="step-number">08</div>
+        <div>
+          <div class="step-title">Add GitHub Secrets</div>
+          <div class="step-subtitle">Credentials for Docker Hub and server — never in code</div>
+        </div>
+        <div class="step-time">⏱ 10 min</div>
+      </div>
+
+      <p style="color:var(--mid);font-size:0.9rem;margin-bottom:1rem;">GitHub → Your repo → Settings → Secrets and variables → Actions → New repository secret</p>
+
+      <table>
+        <tr><th>Secret Name</th><th>How to Get It</th></tr>
+        <tr>
+          <td><code>DOCKERHUB_USERNAME</code></td>
+          <td>Your Docker Hub username (not email)</td>
+        </tr>
+        <tr>
+          <td><code>DOCKERHUB_TOKEN</code></td>
+          <td>hub.docker.com → Account Settings → Security → New Access Token → name it "github-actions"</td>
+        </tr>
+        <tr>
+          <td><code>DEPLOY_HOST</code></td>
+          <td>Your server's public IP (get a free one — see Step 10)</td>
+        </tr>
+        <tr>
+          <td><code>DEPLOY_USER</code></td>
+          <td>Usually <code>ubuntu</code> (AWS) or <code>root</code> (DigitalOcean)</td>
+        </tr>
+        <tr>
+          <td><code>DEPLOY_SSH_KEY</code></td>
+          <td>Paste contents of your private key: <code>cat ~/.ssh/id_rsa</code></td>
+        </tr>
+        <tr>
+          <td><code>DEPLOY_PORT</code></td>
+          <td><code>22</code> (standard SSH port)</td>
+        </tr>
+      </table>
+
+      <div class="callout info">
+        <span class="callout-icon">🔑</span>
+        <div><strong>Generate an SSH key pair if you don't have one:</strong>
+          <br><code>ssh-keygen -t ed25519 -C "github-actions-deploy"</code>
+          <br>Add the <em>public</em> key (<code>~/.ssh/id_ed25519.pub</code>) to your server's <code>~/.ssh/authorized_keys</code>
+          <br>Add the <em>private</em> key (<code>~/.ssh/id_ed25519</code>) to GitHub as <code>DEPLOY_SSH_KEY</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 9: PIPELINE -->
+    <div class="step" id="step-pipeline">
+      <div class="step-header">
+        <div class="step-number">09</div>
+        <div>
+          <div class="step-title">Understand the CI/CD Pipeline</div>
+          <div class="step-subtitle">The centrepiece of this project</div>
+        </div>
+        <div class="step-time">⏱ 20 min reading</div>
+      </div>
+
+      <p style="color:var(--mid);font-size:0.9rem;margin-bottom:1rem;">Open <code>.github/workflows/ci-cd.yml</code> and read every comment. Here's the flow:</p>
+
+      <div class="arch-diagram">git push origin main
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  GitHub Actions starts pipeline                             │
+│                                                             │
+│  ┌──────────────────┐                                       │
+│  │  JOB 1: test     │  (runs on ALL branches)               │
+│  │  ─────────────── │                                       │
+│  │  ✓ checkout code │                                       │
+│  │  ✓ python setup  │                                       │
+│  │  ✓ pip install   │                                       │
+│  │  ✓ flake8 lint   │ ← syntax errors caught here           │
+│  │  ✓ pytest 25+    │ ← fail here = nothing deploys         │
+│  │  ✓ coverage 70%+ │                                       │
+│  └────────┬─────────┘                                       │
+│           │ only if tests pass AND branch = main            │
+│           ▼                                                 │
+│  ┌──────────────────┐                                       │
+│  │  JOB 2: build    │                                       │
+│  │  ─────────────── │                                       │
+│  │  ✓ docker login  │                                       │
+│  │  ✓ docker build  │ ← multi-stage, cached                 │
+│  │  ✓ tag: latest   │                                       │
+│  │  ✓ tag: sha-xxxx │ ← for rollbacks                       │
+│  │  ✓ docker push   │ → Docker Hub                          │
+│  │  ✓ trivy scan    │ ← CVE security scan                   │
+│  └────────┬─────────┘                                       │
+│           │ only if build succeeded                         │
+│           ▼                                                 │
+│  ┌──────────────────┐                                       │
+│  │  JOB 3: deploy   │                                       │
+│  │  ─────────────── │                                       │
+│  │  ✓ SSH → server  │                                       │
+│  │  ✓ docker pull   │                                       │
+│  │  ✓ compose up -d │                                       │
+│  │  ✓ health check  │ ← waits 30s, retries 10x              │
+│  │  ✓ smoke test    │ ← CI runner pings /health             │
+│  └──────────────────┘                                       │
+└─────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  JOB 4: notify (always runs, writes summary to GitHub UI)</div>
+
+      <div class="callout info">
+        <span class="callout-icon">👁</span>
+        <div>Watch your pipeline run live at <strong>github.com/YOUR_USERNAME/devops-demo-api/actions</strong> — you'll see each job, each step, and real-time logs as they execute.</div>
+      </div>
+    </div>
+
+    <!-- STEP 10: DEPLOY -->
+    <div class="step" id="step-deploy">
+      <div class="step-header">
+        <div class="step-number">10</div>
+        <div>
+          <div class="step-title">Get a Free Cloud Server</div>
+          <div class="step-subtitle">Where your app actually runs in the world</div>
+        </div>
+        <div class="step-time">⏱ 20 min</div>
+      </div>
+
+      <p style="color:var(--mid);font-size:0.9rem;margin-bottom:1rem;">You need a real server to demonstrate actual deployment. Free options:</p>
+
+      <table>
+        <tr><th>Option</th><th>Free Tier</th><th>Best For</th></tr>
+        <tr>
+          <td><strong>AWS EC2</strong></td>
+          <td>t2.micro free for 12 months</td>
+          <td>Most hiring managers recognize AWS — use this</td>
+        </tr>
+        <tr>
+          <td><strong>DigitalOcean</strong></td>
+          <td>$200 credit with GitHub Student Pack</td>
+          <td>Easiest to set up, great UX</td>
+        </tr>
+        <tr>
+          <td><strong>Oracle Cloud</strong></td>
+          <td>Always-free VM (2 CPUs, 1GB RAM)</td>
+          <td>Forever free, decent for portfolio</td>
+        </tr>
+        <tr>
+          <td><strong>Railway / Render</strong></td>
+          <td>Free hobby tier</td>
+          <td>Simplest — no SSH needed, skip deploy job</td>
+        </tr>
+      </table>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-filename">terminal — once you have a server, set it up</span>
+          <button class="copy-btn" onclick="copyCode(this)">copy</button>
+        </div>
+        <pre><span class="cm"># SSH into your new server</span>
+<span class="t-prompt">$</span> <span class="t-cmd">ssh ubuntu@YOUR_SERVER_IP</span>
+
+<span class="cm"># Run the setup script (installs Docker, configures firewall)</span>
+<span class="t-prompt">server $</span> <span class="t-cmd">curl -fsSL \
+  https://raw.githubusercontent.com/YOUR_USERNAME/devops-demo-api/main/server-setup.sh \
+  | bash</span>
+
+<span class="cm"># Create the app directory</span>
+<span class="t-prompt">server $</span> <span class="t-cmd">mkdir ~/devops-demo && cd ~/devops-demo</span>
+
+<span class="cm"># Copy nginx config to server</span>
+<span class="t-prompt">$</span> <span class="t-cmd">scp nginx/nginx.conf ubuntu@YOUR_SERVER_IP:~/devops-demo/nginx/</span>
+
+<span class="cm"># Add your SSH public key to authorized_keys on the server</span>
+<span class="t-prompt">server $</span> <span class="t-cmd">echo "YOUR_PUBLIC_KEY" >> ~/.ssh/authorized_keys</span></pre>
+      </div>
+    </div>
+
+    <!-- STEP 11: VERIFY -->
+    <div class="step" id="step-verify">
+      <div class="step-header">
+        <div class="step-number">11</div>
+        <div>
+          <div class="step-title">Verify the Full Pipeline</div>
+          <div class="step-subtitle">Make a change, push, watch it auto-deploy</div>
+        </div>
+        <div class="step-time">⏱ 10 min</div>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-filename">terminal — trigger a full pipeline run</span>
+          <button class="copy-btn" onclick="copyCode(this)">copy</button>
+        </div>
+        <pre><span class="cm"># Make a visible change to the app</span>
+<span class="t-prompt">$</span> <span class="t-cmd">echo "" >> app/main.py</span>
+<span class="t-prompt">$</span> <span class="t-cmd">echo '# Pipeline triggered at: '$(date) >> app/main.py</span>
+
+<span class="cm"># Commit and push — this triggers the full pipeline</span>
+<span class="t-prompt">$</span> <span class="t-cmd">git add . && git commit -m "test: trigger pipeline deployment"</span>
+<span class="t-prompt">$</span> <span class="t-cmd">git push origin main</span>
+
+<span class="t-out">Enumerating objects: 5, done.</span>
+<span class="t-out">Writing objects: 100% (3/3), done.</span>
+<span class="t-out">To https://github.com/YOUR_USERNAME/devops-demo-api.git</span>
+<span class="t-out">   abc1234..def5678  main -> main</span>
+
+<span class="cm"># Watch it run at:</span>
+<span class="cm"># github.com/YOUR_USERNAME/devops-demo-api/actions</span>
+
+<span class="cm"># After pipeline finishes (~3 min), verify on your server:</span>
+<span class="t-prompt">$</span> <span class="t-cmd">curl http://YOUR_SERVER_IP/health</span>
+<span class="t-out">{"status": "healthy", "uptime_seconds": 1.2}</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">curl http://YOUR_SERVER_IP/info</span>
+<span class="t-out">{"version": "def5678", "environment": "production", ...}</span></pre>
+      </div>
+
+      <div class="callout success">
+        <span class="callout-icon">🚀</span>
+        <div><strong>You now have a real CI/CD pipeline.</strong> Every future push to main will automatically test, build a Docker image, push it to Docker Hub, deploy it to your server, and verify health — in under 3 minutes, with zero manual steps.</div>
+      </div>
+    </div>
+
+    <!-- INTERVIEW PREP -->
+    <div class="step" id="step-interview" style="border-color:#1a1a2e;border-width:2px;">
+      <div class="step-header">
+        <div class="step-number" style="background:var(--green);">★</div>
+        <div>
+          <div class="step-title">Interview Preparation — Own This Project</div>
+          <div class="step-subtitle">How to narrate it, what to highlight, what questions to expect</div>
+        </div>
+      </div>
+
+      <p style="font-weight:700;margin-bottom:0.75rem;">Your 90-second project pitch:</p>
+      <div style="background:var(--bg);border-left:3px solid var(--green);padding:1.25rem;border-radius:0 8px 8px 0;font-size:0.9rem;line-height:1.8;margin-bottom:1.5rem;">
+        <em>"I built a production CI/CD pipeline that fully automates the deployment lifecycle for a Flask REST API. The problem I was solving: manual deployments are error-prone, slow, and require one person with server access — a single point of failure. My pipeline runs automatically on every Git push: it executes 25+ unit tests with coverage enforcement, lints for syntax errors, then builds a multi-stage Docker image and scans it for security vulnerabilities using Trivy. If all gates pass, it SSHs into the server, pulls the new image, and restarts the container — the whole process takes under 3 minutes with no manual intervention. I configured Nginx as a reverse proxy with rate limiting and security headers, and the container runs as a non-root user. The thing I'm most proud of is the health check loop in the deploy script: it won't report success until the new container actually responds to /health — so if the app crashes on startup, the pipeline fails loudly instead of silently deploying a broken version."</em>
+      </div>
+
+      <p style="font-weight:700;margin-bottom:0.75rem;">Questions they'll ask — your answers:</p>
+
+      <table>
+        <tr><th>Question</th><th>Key Answer Points</th></tr>
+        <tr>
+          <td>Why multi-stage Docker build?</td>
+          <td>Build tools (pip, compilers) never make it into the production image. Smaller attack surface, smaller image size (165MB vs 800MB+). Stage 1 builds, stage 2 runs.</td>
+        </tr>
+        <tr>
+          <td>Why Nginx in front of Flask?</td>
+          <td>Gunicorn isn't meant for direct internet exposure. Nginx handles rate limiting, security headers, connection pooling, SSL termination, and protects against slowloris attacks.</td>
+        </tr>
+        <tr>
+          <td>How do you handle a failed deployment?</td>
+          <td>The health check loop catches it — if /health doesn't return 200 within 30s, the pipeline job fails. The previous container was stopped, so you'd roll back with: docker pull image:sha-previous && docker compose up.</td>
+        </tr>
+        <tr>
+          <td>How do secrets stay secure?</td>
+          <td>All credentials are GitHub Secrets — encrypted at rest, injected as env vars at runtime, never appear in logs or source code. The Dockerfile uses build-args, not hardcoded values.</td>
+        </tr>
+        <tr>
+          <td>How would you scale this beyond one server?</td>
+          <td>Replace the SSH deploy step with kubectl set image (Kubernetes) or an ECS task definition update. The CI portion (test + build) is identical at any scale.</td>
+        </tr>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function copyCode(btn) {
+    const pre = btn.closest('.code-block').querySelector('pre');
+    const text = pre.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+
+  function toggleCheck(box) {
+    box.classList.toggle('checked');
+    if (box.classList.contains('checked')) box.textContent = '✓';
+    else box.textContent = '';
+    updateProgress();
+  }
+
+  function updateProgress() {
+    const all = document.querySelectorAll('.check-box');
+    const checked = document.querySelectorAll('.check-box.checked');
+    const pct = Math.round((checked.length / all.length) * 100);
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressPct').textContent = pct + '%';
+  }
+
+  // Sidebar active state on scroll
+  const steps = document.querySelectorAll('.step');
+  const links = document.querySelectorAll('.sidebar a');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const id = entry.target.id;
+        const link = document.querySelector(`.sidebar a[href="#${id}"]`);
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { threshold: 0.3 });
+  steps.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

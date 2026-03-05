@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.mypy_cache/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env
+
+# Environment files (NEVER commit secrets)
+.env.local
+.env.production
+*.env
+
+# Docker
+.dockerignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Terraform (for later projects)
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfplan
