@@ -1,309 +1,92 @@
-# .github/workflows/ci-cd.yml
-# ─────────────────────────────────────────────────────────────────────────────
-# CI/CD Pipeline — devops-demo-api
-#
-# WHAT THIS DOES (in order):
-# 1. On every push/PR → run tests (CI)
-# 2. On push to main only → build Docker image, push to registry (CD)
-# 3. On push to main only → deploy to server via SSH (CD)
-#
-# TRIGGERS:
-#   - Push to any branch    → runs "test" job
-#   - Push to main branch   → runs "test" → "build" → "deploy"
-#   - Pull Request to main  → runs "test" only (can't deploy from forks)
-#
-# SECRETS REQUIRED (set in GitHub repo Settings → Secrets → Actions):
-#   DOCKERHUB_USERNAME   → your Docker Hub username
-#   DOCKERHUB_TOKEN      → Docker Hub access token (not your password!)
-#   DEPLOY_HOST          → IP or hostname of your server
-#   DEPLOY_USER          → SSH username on server (e.g., ubuntu)
-#   DEPLOY_SSH_KEY       → private SSH key for server access
-#   DEPLOY_PORT          → SSH port (usually 22)
-# ─────────────────────────────────────────────────────────────────────────────
-
 name: CI/CD Pipeline
 
 on:
   push:
-    branches: ["**"]          # Run CI on ALL branches
+    branches: ["**"]
   pull_request:
-    branches: [main]          # Run CI on PRs targeting main
+    branches: [main]
 
-# Cancel in-progress runs on the same branch (saves CI minutes)
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# ── Environment Variables shared across jobs ──────────────────────────────────
 env:
   IMAGE_NAME: devops-demo-api
   PYTHON_VERSION: "3.12"
 
 jobs:
 
-  # ════════════════════════════════════════════════════════════════════════════
-  # JOB 1: Test
-  # Runs on EVERY push and every PR.
-  # If tests fail here → pipeline stops. Nothing gets deployed.
-  # ════════════════════════════════════════════════════════════════════════════
   test:
-    name: 🧪 Run Tests
+    name: Run Tests
     runs-on: ubuntu-latest
-
     steps:
-      # ── Checkout source code ─────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ── Set up Python ────────────────────────────────────────────────────────
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip               # Cache pip dependencies between runs
+          cache: pip
 
-      # ── Install dependencies ─────────────────────────────────────────────────
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r app/requirements.txt
 
-      # ── Code quality check (linting) ─────────────────────────────────────────
-      # flake8 catches syntax errors and style violations BEFORE tests run
       - name: Lint with flake8
         run: |
           pip install flake8
-          # Stop if there are Python syntax errors or undefined names
           flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
-          # Warn on style issues (doesn't fail the build)
-          flake8 app/ --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
 
-      # ── Run the test suite ────────────────────────────────────────────────────
-      - name: Run pytest with coverage
+      - name: Run tests
         run: |
           pytest tests/ -v \
             --cov=app \
             --cov-report=term-missing \
-            --cov-report=xml:coverage.xml \
             --tb=short
 
-      # ── Upload coverage report ────────────────────────────────────────────────
-      # This stores coverage.xml as a pipeline artifact you can download
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()             # Upload even if tests failed (for debugging)
-        with:
-          name: coverage-report
-          path: coverage.xml
-          retention-days: 30
-
-      # ── Coverage gate ────────────────────────────────────────────────────────
-      # Fail if test coverage drops below 70%
-      # This enforces that new code must have tests
-      - name: Check coverage threshold
-        run: |
-          pip install coverage
-          coverage report --fail-under=70 || echo "⚠️ Coverage below 70%"
-
-
-  # ════════════════════════════════════════════════════════════════════════════
-  # JOB 2: Build & Push Docker Image
-  # Only runs on push to main AND after tests pass.
-  # Builds the image, tags it, pushes to Docker Hub.
-  # ════════════════════════════════════════════════════════════════════════════
   build:
-    name: 🐳 Build & Push Docker Image
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: test                  # Won't start until "test" job succeeds
+    needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    outputs:
-      image-tag: ${{ steps.meta.outputs.version }}
-      image-digest: ${{ steps.build.outputs.digest }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ── Generate image metadata ───────────────────────────────────────────────
-      # Creates tags like: latest, 1.0.0, sha-abc1234
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-            type=sha,prefix=sha-,format=short
-            type=raw,value={{date 'YYYY.MM.DD'}}-{{sha}}
-
-      # ── Set up Docker Buildx ──────────────────────────────────────────────────
-      # Buildx enables multi-platform builds and advanced caching
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # ── Log in to Docker Hub ──────────────────────────────────────────────────
-      # Uses secrets — credentials are NEVER in source code
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # ── Build and push ────────────────────────────────────────────────────────
-      - name: Build and push Docker image
-        id: build
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # Build arguments baked into the image
-          build-args: |
-            APP_VERSION=${{ github.sha }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp }}
-          # Cache layers from previous builds (faster CI)
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Build for both amd64 (servers) and arm64 (Apple M1/M2)
-          platforms: linux/amd64,linux/arm64
 
-      # ── Security scan the built image ─────────────────────────────────────────
-      # Trivy scans for known CVEs in the image we just built
-      # This is the DevSecOps touch that impresses interviewers
-      - name: Scan image for vulnerabilities (Trivy)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-          format: table
-          exit-code: 0            # Don't fail build on vulnerabilities (warn only)
-          ignore-unfixed: true    # Skip vulns with no available fix
-          severity: CRITICAL,HIGH
-
-      # ── Image size report ─────────────────────────────────────────────────────
-      - name: Report image size
-        run: |
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-          echo "📦 Image size:"
-          docker images ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
-            --format "{{.Repository}}:{{.Tag}} → {{.Size}}"
-
-
-  # ════════════════════════════════════════════════════════════════════════════
-  # JOB 3: Deploy to Server
-  # SSH into the server, pull the new image, restart the container.
-  # This is how most small-medium deployments work in the real world.
-  # ════════════════════════════════════════════════════════════════════════════
-  deploy:
-    name: 🚀 Deploy to Server
-    runs-on: ubuntu-latest
-    needs: build                 # Won't start until image is built & pushed
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    # Track deployment in GitHub UI
-    environment:
-      name: production
-      url: http://${{ secrets.DEPLOY_HOST }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # ── Deploy via SSH ────────────────────────────────────────────────────────
-      # SSH into the server, pull the new image, restart containers
-      # The heredoc (<<'ENDSSH') runs multiple commands in one SSH session
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: '22'
-          script: |
-            set -e   # Exit on any error
-
-            echo "🔄 Starting deployment at $(date)"
-            echo "📦 Commit: ${{ github.sha }}"
-
-            # Navigate to the project directory
-            cd ~/devops-demo || { echo "❌ App directory not found"; exit 1; }
-
-            # Pull the latest image from Docker Hub
-            echo "📥 Pulling latest image..."
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-
-            # Update the running container (zero-downtime approach):
-            # 1. Bring up the new container
-            # 2. Old container removed automatically by docker compose
-            echo "🔄 Restarting services..."
-            APP_VERSION=${{ github.sha }} \
-            BUILD_TIME=${{ github.event.head_commit.timestamp }} \
-            DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }} \
-            docker compose up -d --force-recreate api
-
-            # Wait for health check to pass
-            echo "⏳ Waiting for health check..."
-            sleep 5
-            for i in {1..10}; do
-              if curl -sf http://localhost:5000/health > /dev/null; then
-                echo "✅ Deployment successful! App is healthy."
-                break
-              fi
-              echo "Attempt $i/10: not ready yet, waiting..."
-              sleep 3
-            done
-
-            # Verify health
-            curl -s http://localhost:5000/health | python3 -m json.tool
-
-            # Clean up old images (saves disk space)
-            docker image prune -f
-
-            echo "🎉 Deployment complete at $(date)"
-
-      # ── Post-deployment smoke test ────────────────────────────────────────────
-      # Run a quick check from CI runner to confirm the deployed app responds
-      - name: Smoke test deployed app
-        run: |
-          echo "Running smoke tests against production..."
-          sleep 3
-
-          # Health check
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.DEPLOY_HOST }}/health)
-          if [ "$STATUS" != "200" ]; then
-            echo "❌ Health check failed! Got HTTP $STATUS"
-            exit 1
-          fi
-          echo "✅ /health → $STATUS"
-
-          # Root endpoint
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.DEPLOY_HOST }}/)
-          echo "✅ / → $STATUS"
-
-          echo "🎉 All smoke tests passed!"
-
-
-  # ════════════════════════════════════════════════════════════════════════════
-  # JOB 4: Notify (Slack/summary)
-  # Always runs last — reports success or failure
-  # ════════════════════════════════════════════════════════════════════════════
   notify:
-    name: 📣 Notify
+    name: Summary
     runs-on: ubuntu-latest
-    needs: [test, build, deploy]
+    needs: [test, build]
     if: always() && github.ref == 'refs/heads/main'
-
     steps:
-      - name: Deployment Summary
+      - name: Write summary
         run: |
-          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "## Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Tests | ${{ needs.test.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Deploy | ${{ needs.deploy.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Branch | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Author | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
