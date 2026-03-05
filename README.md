@@ -5,6 +5,7 @@
 ![CI/CD Pipeline](https://img.shields.io/github/actions/workflow/status/fa1829/devops-demo-api/ci-cd.yml?label=CI%2FCD&style=flat-square)
 ![Docker](https://img.shields.io/badge/Docker-multi--stage-2496ED?style=flat-square&logo=docker)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
 ---
 
@@ -30,6 +31,16 @@ git push origin main
 │  pytest   docker push to Docker Hub     │
 │  flake8                                 │
 └─────────────────────────────────────────┘
+                │
+                ▼
+         Docker Hub
+                │
+                ▼
+        Production Server
+        ┌──────────────┐
+        │ Nginx :80    │
+        │ Flask :6000  │
+        └──────────────┘
 ```
 
 ---
@@ -102,6 +113,72 @@ pytest tests/ -v --cov=app
 - Multi-stage Docker build — no build tools in production image
 - Nginx rate limiting and security headers
 - All credentials in GitHub Secrets, never in source code
+
+---
+
+## Using This Pipeline for a New Project
+
+This pipeline is designed to be reusable. Any new containerized project
+can adopt it in under an hour.
+
+### What You Need
+- GitHub repo
+- Docker Hub account
+- Two secrets in GitHub: `DOCKERHUB_USERNAME` + `DOCKERHUB_TOKEN`
+
+### Step 1 — Copy These 4 Files Into Your New Project
+```
+.github/workflows/ci-cd.yml   ← the pipeline
+Dockerfile                     ← container build
+docker-compose.yml             ← local dev stack
+nginx/nginx.conf               ← reverse proxy
+```
+
+### Step 2 — Change 2 Things in `ci-cd.yml`
+```yaml
+# Change the test command to match your language
+# Python:
+pip install -r requirements.txt
+pytest tests/
+
+# Node.js:
+npm install
+npm test
+
+# Java:
+mvn test
+```
+```yaml
+# Change the image name
+repository: YOUR_DOCKERHUB_USERNAME/YOUR_PROJECT_NAME
+```
+
+### Step 3 — Change 1 Thing in `Dockerfile`
+```dockerfile
+FROM python:3.12-slim   # Python
+FROM node:20-slim       # Node.js
+FROM eclipse-temurin:21 # Java
+```
+
+### Step 4 — Push to Main
+```bash
+git push origin main
+```
+
+Pipeline runs automatically:
+```
+push → test → build → image on Docker Hub
+```
+
+### What You Never Touch Again
+```
+nginx/nginx.conf    ← universal, works for any web app
+secrets pattern     ← same two secrets every time
+job structure       ← test → build → summary, always
+health check design ← /health endpoint, same pattern
+```
+
+One pipeline template. Any language. Any project.
 
 ---
 
