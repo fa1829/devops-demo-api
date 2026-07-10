@@ -1,187 +1,260 @@
 # devops-demo-api
 
-> A production-grade CI/CD pipeline that automatically tests, containerizes, and deploys a Flask REST API on every Git push.
-
-![CI/CD Pipeline](https://img.shields.io/github/actions/workflow/status/fa1829/devops-demo-api/ci-cd.yml?label=CI%2FCD&style=flat-square)
-![Docker](https://img.shields.io/badge/Docker-multi--stage-2496ED?style=flat-square&logo=docker)
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python)
-![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-
----
-
-## Overview
-
-Every `git push` to `main` triggers a fully automated pipeline:
-
-- Runs 29 unit tests with 91% coverage — bad code never reaches production
-- Lints with flake8 for syntax errors
-- Builds a production Docker image (multi-stage, non-root user)
-- Pushes versioned image to Docker Hub
+A containerized **Flask REST API** with a complete **CI/CD pipeline** built on
+GitHub Actions. Every push runs an automated test suite (29 tests, 91% coverage)
+and linting; on success, a multi-stage Docker image is built and published. The
+project demonstrates the core DevOps practices — automated testing as a quality
+gate, secure containerization, and health endpoints for orchestration — as a small
+but complete and reusable template.
 
 ---
 
-## Architecture
+## Table of contents
+
+1. [Background: what CI/CD is and why it matters](#1-background)
+2. [Core concepts](#2-core-concepts)
+3. [Architecture](#3-architecture)
+4. [Repository structure](#4-repository-structure)
+5. [API endpoints](#5-api-endpoints)
+6. [Quick start (local)](#6-quick-start-local)
+7. [The CI/CD pipeline](#7-the-cicd-pipeline)
+8. [Security practices](#8-security-practices)
+9. [Reusing the pipeline for another project](#9-reusing-the-pipeline-for-another-project)
+10. [Design notes and limitations](#10-design-notes-and-limitations)
+11. [Requirements](#11-requirements)
+12. [Further reading](#12-further-reading)
+
+---
+
+## 1. Background
+
+### What CI/CD is
+
+**CI/CD** stands for Continuous Integration and Continuous Deployment (or
+Delivery), the practices and tooling that automate building, testing, and releasing
+software.
+
+- **Continuous Integration (CI)** means every code change is automatically built and
+  tested, so integration problems are caught early rather than accumulating.
+- **Continuous Deployment/Delivery (CD)** means every change that passes CI is
+  automatically (Deployment) or on approval (Delivery) turned into a publishable
+  release artifact.
+
+### Why it matters
+
+Automating the build-test-release path removes manual, error-prone steps, catches
+defects at the cheapest possible point (before they ship), and makes releases
+repeatable. This project implements that path end to end for a small API, so each
+practice is visible rather than hidden inside a large system.
+
+---
+
+## 2. Core concepts
+
+These concepts explain the pipeline and container design in later sections.
+
+### CI versus CD, mapped onto this pipeline
+
+In this project's GitHub Actions workflow, the **test** job (pytest plus a linter)
+is the CI step — every push is verified before anything else happens. The **build**
+job, which produces and publishes a Docker image after tests pass, is the CD step.
+The distinction is concrete here: one job verifies, the next releases.
+
+### The pipeline as a sequence of quality gates
+
+The jobs are ordered deliberately — `test` then `build` — so the build never runs
+if the tests fail. A broken image therefore cannot even be produced, let alone
+published. This "fail fast" ordering is the general reason pipelines are staged into
+steps rather than doing everything at once: each stage catches a specific class of
+problem as early and cheaply as possible.
+
+### Multi-stage Docker builds
+
+A multi-stage build uses one stage containing full build tooling (compilers, dev
+dependencies) to build the application, then copies only the finished artifacts into
+a clean, minimal final image. The result is a smaller production image with a
+reduced attack surface, because build tools that could assist an attacker after a
+compromise are simply not present in what ships.
+
+### Non-root container users
+
+The container runs its process as a non-root user. If an attacker achieves code
+execution inside the container, they do not automatically hold root privileges
+within it — the principle of least privilege applied at the container layer. It is
+an easy control to omit and a meaningful one to include.
+
+### Health and readiness endpoints
+
+The API exposes `/health` (liveness) and `/ready` (readiness) endpoints so that an
+external system — an orchestrator such as Kubernetes, or a load balancer — can ask
+"should traffic be routed here, or should this instance be restarted?" without human
+involvement. These endpoints are the integration point between an application and
+the platform that runs it.
+
+### Secrets via CI secrets
+
+Registry credentials used by the pipeline are injected as encrypted CI secrets
+rather than hardcoded. This is the CI/CD form of the environment-variable pattern
+for handling secrets: credentials never live in source code or version control.
+
+---
+
+## 3. Architecture
+
 ```
-git push origin main
-        │
-        ▼
-┌─────────────────────────────────────────┐
-│  GitHub Actions                         │
-│  test ──▶ build                         │
-│  pytest   docker push to Docker Hub     │
-│  flake8                                 │
-└─────────────────────────────────────────┘
-                │
-                ▼
-         Docker Hub
-                │
-                ▼
-        Production Server
-        ┌──────────────┐
-        │ Nginx :80    │
-        │ Flask :6000  │
-        └──────────────┘
+developer push
+      │
+      ▼
+GitHub Actions
+  ├── test  (pytest + lint)  ── fails ─►  pipeline stops, no image built
+  │        │ passes
+  │        ▼
+  └── build (multi-stage Docker image)  ──►  publish to registry
+                                                    │
+                                                    ▼
+                                     deployable image (used by k8s-deployment-demo)
+
+Local development:
+  docker-compose  ──►  Flask API (non-root)  +  nginx reverse proxy
+```
+
+The published image is consumed by a separate Kubernetes deployment project, which
+relies on the health/readiness endpoints defined here — the two form a connected
+build-then-deploy pair.
+
+---
+
+## 4. Repository structure
+
+```
+devops-demo-api/
+├── app/                      # Flask application code
+├── tests/                    # Test suite (29 tests, 91% coverage)
+├── nginx/
+│   └── nginx.conf            # Reverse-proxy configuration
+├── .github/
+│   └── workflows/            # GitHub Actions CI/CD pipeline
+├── Dockerfile                # Multi-stage build, non-root user
+├── docker-compose.yml        # Local development stack (API + nginx)
+├── Makefile                  # Common tasks (build, test, run)
+├── server-setup.sh           # Host provisioning helper
+├── .dockerignore
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-## Tech Stack
+## 5. API endpoints
 
-| Layer | Technology |
-|-------|-----------|
-| Application | Python 3.12 / Flask |
-| WSGI Server | Gunicorn |
-| Containerization | Docker (multi-stage build) |
-| Reverse Proxy | Nginx |
-| CI/CD | GitHub Actions |
-| Image Registry | Docker Hub |
-| Orchestration | Docker Compose |
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/health` | Liveness check — is the process running? |
+| GET | `/ready` | Readiness check — is the process ready to serve traffic? |
+| GET | `/` and application routes | Application functionality |
+
+The `/health` and `/ready` split matters for orchestration: liveness governs whether
+an instance should be restarted, readiness governs whether it should receive traffic.
 
 ---
 
-## Quick Start
+## 6. Quick start (local)
 
-**Requirements:** Docker Desktop
+With Docker and Docker Compose installed:
+
 ```bash
-git clone https://github.com/fa1829/devops-demo-api.git
 cd devops-demo-api
-docker compose up --build
+docker-compose up --build
+```
+
+This builds the image and starts the API behind the nginx reverse proxy. Verify it
+is running:
+
+```bash
 curl http://localhost:8080/health
 ```
 
----
-
-## Project Structure
-```
-devops-demo-api/
-├── .github/workflows/ci-cd.yml   ← pipeline
-├── app/main.py                   ← Flask API
-├── tests/test_api.py             ← 29 tests, 91% coverage
-├── nginx/nginx.conf              ← reverse proxy
-├── Dockerfile                    ← multi-stage build
-└── docker-compose.yml            ← local dev stack
-```
+A `Makefile` provides shortcuts for common tasks (building, testing, running); see
+its targets with `make help` or by reading the file.
 
 ---
 
-## API Endpoints
+## 7. The CI/CD pipeline
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Liveness check |
-| GET | `/ready` | Readiness check |
-| GET | `/info` | Version and build info |
-| GET | `/api/tasks` | List tasks |
-| POST | `/api/tasks` | Create task |
-| PATCH | `/api/tasks/:id` | Update task |
-| DELETE | `/api/tasks/:id` | Delete task |
+The GitHub Actions workflow runs on every push:
 
----
+1. **Test job** — installs dependencies, runs the test suite (pytest) and the linter.
+   The suite covers the application with 29 tests at 91% statement coverage. If any
+   test or lint check fails, the pipeline stops here.
+2. **Build job** — runs only if the test job passed. It performs the multi-stage
+   Docker build and publishes the resulting image to the container registry using
+   credentials supplied as encrypted CI secrets.
 
-## Running Tests
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r app/requirements.txt
-pytest tests/ -v --cov=app
-```
+This ordering enforces the quality gate described in section 2: only tested code is
+ever built into a publishable image.
 
 ---
 
-## Security
+## 8. Security practices
 
-- Non-root container user
-- Multi-stage Docker build — no build tools in production image
-- Nginx rate limiting and security headers
-- All credentials in GitHub Secrets, never in source code
+- **Multi-stage build** — the shipped image contains only runtime artifacts, not
+  build tooling, reducing its attack surface.
+- **Non-root container user** — least privilege applied at the container layer.
+- **Secrets as CI secrets** — registry credentials are injected as encrypted secrets,
+  never committed to the repository.
+- **`.dockerignore`** — build context excludes files that should not enter the image.
+- **Reverse proxy** — nginx sits in front of the application, the standard pattern
+  for terminating connections and shielding the app server.
 
 ---
 
-## Using This Pipeline for a New Project
+## 9. Reusing the pipeline for another project
 
-This pipeline is designed to be reusable. Any new containerized project
-can adopt it in under an hour.
+The pipeline is written to serve as a template rather than a one-off. Adapting it to
+a different application involves copying the pipeline definition, `Dockerfile`,
+`docker-compose.yml`, and nginx configuration, then changing two things in the
+workflow: the test command (to match the target language or framework) and the image
+name. This "paved path" approach — a standardized, reusable pipeline other projects
+can adopt — is a common goal of platform and DevOps teams.
 
-### What You Need
-- GitHub repo
-- Docker Hub account
-- Two secrets in GitHub: `DOCKERHUB_USERNAME` + `DOCKERHUB_TOKEN`
+---
 
-### Step 1 — Copy These 4 Files Into Your New Project
-```
-.github/workflows/ci-cd.yml   ← the pipeline
-Dockerfile                     ← container build
-docker-compose.yml             ← local dev stack
-nginx/nginx.conf               ← reverse proxy
-```
+## 10. Design notes and limitations
 
-### Step 2 — Change 2 Things in `ci-cd.yml`
-```yaml
-# Change the test command to match your language
-# Python:
-pip install -r requirements.txt
-pytest tests/
+This is a demonstration project: a small API with a complete but single-service
+pipeline. It does not include multi-environment promotion (dev/staging/prod),
+integration or end-to-end test stages beyond the unit suite, infrastructure
+provisioning (handled separately in an Infrastructure-as-Code project), or
+deployment automation to a live cluster (handled separately in a Kubernetes
+deployment project). Each of these would be a natural addition in a production
+setting. The value here is a clear, correct, reusable CI/CD and containerization
+baseline.
 
-# Node.js:
-npm install
-npm test
+---
 
-# Java:
-mvn test
-```
-```yaml
-# Change the image name
-repository: YOUR_DOCKERHUB_USERNAME/YOUR_PROJECT_NAME
-```
+## 11. Requirements
 
-### Step 3 — Change 1 Thing in `Dockerfile`
-```dockerfile
-FROM python:3.12-slim   # Python
-FROM node:20-slim       # Node.js
-FROM eclipse-temurin:21 # Java
-```
+- Docker and Docker Compose (for local build and run).
+- Python 3.10+ (to run the application and tests outside a container).
+- A GitHub repository with Actions enabled and registry credentials configured as
+  secrets (to run the pipeline).
 
-### Step 4 — Push to Main
-```bash
-git push origin main
-```
+---
 
-Pipeline runs automatically:
-```
-push → test → build → image on Docker Hub
-```
+## 12. Further reading
 
-### What You Never Touch Again
-```
-nginx/nginx.conf    ← universal, works for any web app
-secrets pattern     ← same two secrets every time
-job structure       ← test → build → summary, always
-health check design ← /health endpoint, same pattern
-```
-
-One pipeline template. Any language. Any project.
+- **Book:** *Continuous Delivery* (Humble & Farley) — the standard reference on
+  pipeline design principles.
+- **Site:** `12factor.net` — the twelve-factor app methodology, which explains the
+  health-check and config-via-environment patterns used here.
+- **Docs:** `docs.docker.com/build/building/multi-stage/` — Docker's multi-stage
+  build documentation.
+- **Docs:** `docs.github.com/en/actions` — GitHub Actions documentation, in
+  particular the jobs-and-steps concepts relevant to this project's `test → build`
+  structure.
 
 ---
 
 ## License
 
-MIT
+Released under the MIT License. See [LICENSE](LICENSE) for details.
